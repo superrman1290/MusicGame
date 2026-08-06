@@ -1,5 +1,5 @@
-import type { AudioMetadata, SongChart, SongManifest } from './types';
-import { SongChartSchema, SongManifestSchema } from './schemas';
+import type { AudioMetadata, SongChart, SongManifest } from './types.js';
+import { SongChartSchema, SongManifestSchema } from './schemas.js';
 
 export const AUDIO_DURATION_TOLERANCE_MS = 250;
 
@@ -38,4 +38,3 @@ export function validateAudioBinding(expected: AudioMetadata, actual: Pick<Audio
   if (expected.size_bytes !== actual.size_bytes) errors.push('Audio file size does not match the song manifest');
   return errors;
 }
-

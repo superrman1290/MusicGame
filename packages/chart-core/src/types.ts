@@ -7,7 +7,7 @@ import type {
   SongManifestSchema,
   SongSummarySchema,
   TapNoteSchema,
-} from './schemas';
+} from './schemas.js';
 
 export type Difficulty = z.infer<typeof DifficultySchema>;
 export type AudioMetadata = z.infer<typeof AudioMetadataSchema>;
@@ -30,4 +30,3 @@ export interface SongRepository {
   getAudioUrl(id: string): string;
   publishSong(request: PublishSongRequest): Promise<SongManifest>;
 }
-

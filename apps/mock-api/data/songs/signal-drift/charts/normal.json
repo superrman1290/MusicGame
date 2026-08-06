@@ -1,0 +1,108 @@
+{
+  "schema_version": 2,
+  "song_id": "signal-drift",
+  "difficulty": "normal",
+  "offset_ms": 0,
+  "notes": [
+    {
+      "time_ms": 1500,
+      "lane": 0,
+      "type": "tap"
+    },
+    {
+      "time_ms": 2000,
+      "lane": 1,
+      "type": "tap"
+    },
+    {
+      "time_ms": 2500,
+      "lane": 2,
+      "type": "tap"
+    },
+    {
+      "time_ms": 3000,
+      "lane": 3,
+      "type": "tap"
+    },
+    {
+      "time_ms": 3500,
+      "lane": 0,
+      "type": "tap"
+    },
+    {
+      "time_ms": 4000,
+      "lane": 1,
+      "type": "tap"
+    },
+    {
+      "time_ms": 4500,
+      "lane": 2,
+      "type": "tap"
+    },
+    {
+      "time_ms": 5000,
+      "lane": 3,
+      "type": "tap"
+    },
+    {
+      "time_ms": 5500,
+      "lane": 0,
+      "type": "tap"
+    },
+    {
+      "time_ms": 6000,
+      "lane": 1,
+      "type": "tap"
+    },
+    {
+      "time_ms": 6500,
+      "lane": 2,
+      "type": "tap"
+    },
+    {
+      "time_ms": 7000,
+      "lane": 3,
+      "type": "tap"
+    },
+    {
+      "time_ms": 7500,
+      "lane": 0,
+      "type": "tap"
+    },
+    {
+      "time_ms": 8000,
+      "lane": 1,
+      "type": "tap"
+    },
+    {
+      "time_ms": 8500,
+      "lane": 2,
+      "type": "tap"
+    },
+    {
+      "time_ms": 9000,
+      "lane": 3,
+      "type": "tap"
+    },
+    {
+      "time_ms": 9500,
+      "lane": 0,
+      "type": "tap"
+    },
+    {
+      "time_ms": 10000,
+      "lane": 1,
+      "type": "tap"
+    },
+    {
+      "time_ms": 10500,
+      "lane": 2,
+      "type": "tap"
+    },
+    {
+      "time_ms": 11000,
+      "lane": 3,
+      "type": "tap"
+    }
+  ]
+}

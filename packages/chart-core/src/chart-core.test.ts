@@ -6,7 +6,7 @@ import {
   SongManifestSchema,
   validateAudioBinding,
   validateSongProject,
-} from './index';
+} from './index.js';
 
 const hash = 'a'.repeat(64);
 const manifest = {
@@ -57,4 +57,3 @@ describe('judgement timing', () => {
     expect(adjustedSongTimeMs(1000, 25)).toBe(975);
   });
 });
-

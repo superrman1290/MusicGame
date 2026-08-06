@@ -1,0 +1,17 @@
+{
+  "schema_version": 2,
+  "id": "signal-drift",
+  "title": "Signal Drift",
+  "artist": "MusicGame Lab",
+  "bpm": 120,
+  "audio": {
+    "file_name": "signal-drift.wav",
+    "mime_type": "audio/wav",
+    "duration_ms": 12000,
+    "size_bytes": 192044,
+    "sha256": "0a0bc07aa4ac6699374c98c0104d33b8a7b1c0e8fc9d082f7f46341a0f7a6a6f"
+  },
+  "difficulties": [
+    "normal"
+  ]
+}

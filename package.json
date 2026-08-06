@@ -9,7 +9,7 @@
     "dev:api": "npm run dev -w @music-game/mock-api",
     "dev:game": "npm run dev -w @music-game/game",
     "dev:editor": "npm run dev -w @music-game/editor",
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build -w @music-game/chart-core && npm run build -w @music-game/mock-api && npm run build -w @music-game/game && npm run build -w @music-game/editor",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present"
   },
