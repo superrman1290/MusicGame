@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=960">
+<title>节拍柱阵</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#0a0a14;display:flex;justify-content:center;align-items:center;height:100vh;font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden;user-select:none}
+  canvas{border-radius:10px;border:1px solid #2a2a40}
+  #overlay{position:fixed;top:0;left:0;width:100%;height:100%;display:flex;justify-content:center;align-items:center;pointer-events:none;z-index:10}
+  #panel{pointer-events:auto;background:rgba(10,10,20,0.94);border:1px solid #333;border-radius:16px;padding:32px 48px;text-align:center;color:#ccc;min-width:340px}
+  #panel h1{font-size:22px;font-weight:500;color:#fff;margin-bottom:4px}
+  #panel .sub{font-size:12px;color:#666;margin-bottom:18px}
+  #panel .load-row{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:13px}
+  #panel .load-row label{min-width:80px;text-align:right;color:#888}
+  #panel .load-row span{color:#aaa;font-size:12px}
+  #panel .load-row .loaded{color:#4fc3f7}
+  #panel .load-row .unloaded{color:#555}
+  #panel button{background:#2a2a40;border:1px solid #444;color:#ccc;border-radius:6px;padding:7px 16px;font-size:12px;cursor:pointer;transition:background 0.15s}
+  #panel button:hover{background:#3a3a50}
+  #panel button.primary{background:#2a5a3a;border-color:#3a8a4a}
+  #panel button.primary:hover{background:#3a6a4a}
+  #panel button.primary:disabled{background:#1a2a1a;border-color:#2a3a2a;color:#555;cursor:default}
+  #panel .info{margin-top:14px;padding:10px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:12px;color:#777}
+  #panel .key-row{display:flex;gap:12px;justify-content:center;margin:14px 0}
+  #panel .key{width:48px;height:48px;border-radius:8px;border:1.5px solid;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:500}
+  .kd{border-color:#4fc3f7;color:#4fc3f7}.kf{border-color:#81c784;color:#81c784}
+  .kj{border-color:#ffb74d;color:#ffb74d}.kk{border-color:#e57373;color:#e57373}
+</style>
+</head>
+<body>
+<div id="overlay"><div id="panel">
+  <h1>节拍柱阵</h1>
+  <p class="sub">按下 D F J K 在音符到达基线时截击</p>
+  <div class="load-row"><label>Chart</label><button id="btnLoadChart">📁 加载 JSON</button><span id="chartStatus" class="unloaded">未加载</span></div>
+  <div class="load-row"><label>音频</label><button id="btnLoadAudio">🎵 加载 MP3</button><span id="audioStatus" class="unloaded">未加载</span></div>
+  <input type="file" id="chartFile" accept=".json" style="display:none">
+  <input type="file" id="audioFile" accept="audio/*" style="display:none">
+  <div class="load-row"><label>难度</label><select id="difficulty" style="background:#1a1a2e;border:1px solid #333;color:#ddd;border-radius:6px;padding:5px 8px;font-size:12px"><option value="0">简单</option><option value="1" selected>中等</option><option value="2">困难</option></select></div>
+  <div class="load-row"><label>偏移</label><input type="range" id="judgeOffset" min="-200" max="200" value="0" step="5" style="width:120px;accent-color:#4fc3f7"><span style="min-width:48px;font-size:11px;color:#aaa" id="offsetLabel">0ms</span></div>
+  <div class="info" id="songInfo"></div>
+  <div class="key-row">
+    <div class="key kd">D</div><div class="key kf">F</div><div class="key kj">J</div><div class="key kk">K</div>
+  </div>
+  <button id="btnStart" class="primary" disabled>开始对战</button>
+</div></div>
+
+<canvas id="game" width="960" height="600"></canvas>
+
+<script>
+const C={
+  W:960,H:600,LANE_X:[200,340,480,620],LANE_W:140,LANE_COLORS:['#4fc3f7','#81c784','#ffb74d','#e57373'],
+  BASELINE_Y:440,NOTE_SPEED:300,NOTE_H:26,NOTE_W:80,
+  JUDGE_PERFECT:80,JUDGE_GREAT:150,JUDGE_GOOD:250,JUDGE_MISS:350,
+  PLAYER_HP:100,BASE_DMG:1.2,
+  LANE_TOP_X:[399,453,507,561],LANE_TOP_Y:10
+};
+C.EXIT_Y=C.BASELINE_Y+80;
+C.NOTE_VISIBLE_MS=(C.EXIT_Y/C.NOTE_SPEED)*1000;
+C.DIFF_MULT=[0.7,0.8,1.1]; // easy normal hard
+C.ENEMY_MISS_RATE=0.25;
+
+let audioCtx=null,audioBuffer=null,chartData=null,chartLoadError='',audioMeta=null,judgeOffset=0;
+let playerHP,enemyHP,enemyMaxHP,combo,maxCombo,perfectCount,greatCount,goodCount,missCount;
+let gameStartAudioTime=0,gameAudioDuration=0,gameStarted=false,gameEnded=false;
+let gameResult='none'; // 'none' | 'victory' | 'defeat'
+let enemyDefeated=false,finisherCombo=0;
+let attackQueue=[],judgePopups=[],audioSource=null;
+let laneFlash=[0,0,0,0];
+let canvas,ctx;
+
+function resetState(){
+  const diffIdx=parseInt(document.getElementById('difficulty').value);
+  const mult=C.DIFF_MULT[diffIdx];
+  judgeOffset=parseInt(document.getElementById('judgeOffset').value);
+  playerHP=C.PLAYER_HP;enemyMaxHP=Math.max(30,Math.round(chartData.notes.length*mult));enemyHP=enemyMaxHP;
+  combo=0;maxCombo=0;perfectCount=0;greatCount=0;goodCount=0;missCount=0;
+  gameStarted=false;gameEnded=false;gameResult='none';enemyDefeated=false;finisherCombo=0;
+  attackQueue=[];judgePopups=[];laneFlash=[0,0,0,0];
+}
+
+/* ========== UI ========== */
+const chartStatusEl=document.getElementById('chartStatus');
+const audioStatusEl=document.getElementById('audioStatus');
+const songInfoEl=document.getElementById('songInfo');
+const btnStart=document.getElementById('btnStart');
+
+async function sha256Hex(buffer){
+  if(!globalThis.crypto?.subtle)return '';
+  const digest=await crypto.subtle.digest('SHA-256',buffer);
+  return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+function escapeHtml(value){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[c]))}
+
+function chartValidationErrors(data){
+  const errors=[];
+  const duration=Number(data?.audio?.duration_ms);
+  if(!data||typeof data!=='object')return ['谱面不是有效对象'];
+  if(data.schema_version!==2)errors.push('谱面版本过旧，请从编曲工坊重新导出');
+  if(!data.audio||typeof data.audio!=='object'||typeof data.audio.sha256!=='string'||data.audio.sha256.length!==64)errors.push('谱面缺少音频绑定标识');
+  if(!Number.isFinite(Number(data.audio?.duration_ms))||Number(data.audio.duration_ms)<=0)errors.push('谱面缺少有效音频时长');
+  if(!Array.isArray(data.notes))errors.push('音符列表格式无效');
+  else data.notes.forEach((n,i)=>{
+    if(!Number.isFinite(Number(n.time_ms))||Number(n.time_ms)<0)errors.push(`第${i+1}个音符时间无效`);
+    else if(Number.isFinite(duration)&&Number(n.time_ms)>duration+250)errors.push(`第${i+1}个音符超出音频时长`);
+    if(!Number.isInteger(Number(n.lane))||n.lane<0||n.lane>3)errors.push(`第${i+1}个音符轨道无效`);
+  });
+  return errors;
+}
+
+function updateGameReadiness(){
+  const errors=[];
+  if(chartLoadError)errors.push(chartLoadError);
+  if(!chartData)errors.push('请先加载谱面');
+  if(!audioBuffer||!audioMeta)errors.push('请先加载音频');
+  if(chartData&&audioMeta){
+    if(chartData.audio.sha256!==audioMeta.sha256)errors.push('音频文件与谱面不匹配');
+    const expected=Number(chartData.audio.duration_ms),actual=audioMeta.duration_ms;
+    if(Math.abs(expected-actual)>250)errors.push(`音频时长不匹配（谱面 ${expected}ms，当前 ${actual}ms）`);
+  }
+  btnStart.disabled=errors.length>0;
+  const base=chartData?`<strong>${escapeHtml(chartData.song?.title||'未命名')}</strong> · BPM ${Number(chartData.song?.bpm)||'?'} · ${chartData.notes.length} 音符`:'';
+  const message=errors.length?errors.join('；'):'音频绑定校验通过，可以开始对战';
+  songInfoEl.innerHTML=`${base}${base?'<br>':''}<span style="color:${errors.length?'#e57373':'#81c784'}">${escapeHtml(message)}</span>`;
+}
+
+document.getElementById('btnLoadChart').addEventListener('click',()=>document.getElementById('chartFile').click());
+document.getElementById('btnLoadAudio').addEventListener('click',()=>document.getElementById('audioFile').click());
+
+document.getElementById('chartFile').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{try{
+    const parsed=JSON.parse(r.result),errors=chartValidationErrors(parsed);
+    if(errors.length){chartData=null;chartLoadError=errors.join('；');chartStatusEl.textContent='校验失败';chartStatusEl.className='unloaded';updateGameReadiness();return}
+    chartData=parsed;chartLoadError='';chartStatusEl.textContent='已加载';chartStatusEl.className='loaded';updateGameReadiness();
+  }catch(ex){chartData=null;chartLoadError='谱面 JSON 解析失败';chartStatusEl.textContent='解析失败';chartStatusEl.className='unloaded';updateGameReadiness()}};
+  r.readAsText(f);
+});
+
+document.getElementById('audioFile').addEventListener('change',async e=>{
+  const f=e.target.files[0];if(!f)return;if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==='suspended')await audioCtx.resume();
+  try{
+    const ab=await f.arrayBuffer(),sha256=await sha256Hex(ab);
+    audioBuffer=await audioCtx.decodeAudioData(ab.slice(0));
+    audioMeta={name:f.name,size:f.size,lastModified:f.lastModified,duration_ms:Math.round(audioBuffer.duration*1000),sha256};
+    audioStatusEl.textContent=`已加载 (${audioBuffer.duration.toFixed(0)}s)`;audioStatusEl.className='loaded';
+  }catch(ex){audioBuffer=null;audioMeta=null;audioStatusEl.textContent='音频读取失败';audioStatusEl.className='unloaded'}
+  updateGameReadiness();
+});
+document.getElementById('judgeOffset').addEventListener('input',e=>{document.getElementById('offsetLabel').textContent=e.target.value+'ms'});
+
+/* ========== 音频 SFX ========== */
+function playHitSound(lane,q){
+  if(!audioCtx)return;const n=audioCtx.currentTime;
+  const f=[330,392,523,659][lane],v=q==='perfect'?0.16:q==='great'?0.10:0.06;
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.connect(g);g.connect(audioCtx.destination);
+  o.type=q==='perfect'?'square':'triangle';o.frequency.value=f*(q==='perfect'?2:1.5);
+  g.gain.setValueAtTime(v,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.06);o.start(n);o.stop(n+0.06);
+}
+function playBadSound(){
+  if(!audioCtx)return;const n=audioCtx.currentTime;
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.connect(g);g.connect(audioCtx.destination);
+  o.type='sawtooth';o.frequency.value=150;g.gain.setValueAtTime(0.08,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.15);o.start(n);o.stop(n+0.15);
+}
+function playFinisherSound(){
+  if(!audioCtx)return;const n=audioCtx.currentTime;
+  // 上升音阶
+  for(let i=0;i<5;i++){[300,400,500,600,800].forEach((f,idx)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.connect(g);g.connect(audioCtx.destination);
+    o.type='square';o.frequency.value=f;g.gain.setValueAtTime(0.05,n+idx*0.04+i*0.02);g.gain.exponentialRampToValueAtTime(0.001,n+idx*0.04+i*0.02+0.03);o.start(n+idx*0.04+i*0.02);o.stop(n+idx*0.04+i*0.02+0.03)})}
+}
+
+/* ========== 判定 ========== */
+function tryJudge(lane){
+  if(gameEnded||!audioCtx)return;
+  const now=(audioCtx.currentTime-gameStartAudioTime)*1000-judgeOffset;
+  const notes=chartData.notes;
+  let best=null,bestDiff=Infinity;
+  for(const n of notes){if(n.judged||n.lane!==lane)continue;const d=Math.abs(n.time_ms-now);if(d<bestDiff&&d<C.JUDGE_MISS){best=n;bestDiff=d}}
+  if(!best)return;
+  best.judged=true;best.exitTime=performance.now();const diff=Math.abs(best.time_ms-now);
+  let q,dmgM;
+  if(diff<=C.JUDGE_PERFECT){q='perfect';dmgM=1.5;perfectCount++}
+  else if(diff<=C.JUDGE_GREAT){q='great';dmgM=1.0;greatCount++}
+  else if(diff<=C.JUDGE_GOOD){q='good';dmgM=0.5;goodCount++}
+  else{q='miss';dmgM=0;best.autoMiss=false;missCount++}
+  best.result=q;
+
+  if(q!=='miss'){
+    combo++;if(combo>maxCombo)maxCombo=combo;
+    let cm=1;if(combo>=50)cm=2;else if(combo>=30)cm=1.5;else if(combo>=10)cm=1.25;
+    if(!enemyDefeated){
+      enemyHP=Math.max(0,enemyHP-C.BASE_DMG*dmgM*cm);
+      if(enemyHP<=0){enemyDefeated=true;combo=0;}
+    }
+    attackQueue.push({target:'enemy',time:performance.now()+180});
+    playHitSound(lane,q);
+  }else{
+    const wasCombo=combo;
+    combo=0;
+    playBadSound();
+    // finisher: enemy already defeated, combo breaks → final blow
+    if(enemyDefeated){
+      finisherCombo=wasCombo;
+      gameEnded=true;gameResult='victory';
+      playFinisherSound();
+    }else if(Math.random()>C.ENEMY_MISS_RATE){
+      playerHP=Math.max(0,playerHP-C.BASE_DMG);
+      attackQueue.push({target:'player',time:performance.now()+180})
+    }
+  }
+  judgePopups.push({text:q.toUpperCase(),color:q==='perfect'?'#ffd700':q==='great'?'#4fc3f7':q==='good'?'#81c784':'#e57373',x:C.LANE_X[lane]+C.LANE_W/2,y:C.BASELINE_Y-20,life:0,maxLife:800});
+  if(!gameEnded&&playerHP<=0){gameEnded=true;gameResult='defeat'}
+}
+
+function processMisses(){
+  if(!audioCtx)return;
+  const now=(audioCtx.currentTime-gameStartAudioTime)*1000-judgeOffset;
+  for(const n of chartData.notes){
+    if(n.judged)continue;
+    if(now-n.time_ms>C.JUDGE_MISS){n.judged=true;n.result='miss';n.autoMiss=true;n.exitTime=performance.now();
+      n.exitY=C.LANE_TOP_Y+(C.EXIT_Y-C.LANE_TOP_Y)*(1-Math.min(1,(n.time_ms-now)/C.NOTE_VISIBLE_MS));missCount++;
+      const wasCombo=combo;combo=0;
+      if(enemyDefeated){
+        finisherCombo=wasCombo;gameEnded=true;gameResult='victory';playFinisherSound();
+      }else if(Math.random()>C.ENEMY_MISS_RATE){
+        playerHP=Math.max(0,playerHP-C.BASE_DMG);attackQueue.push({target:'player',time:performance.now()+150});
+      }
+      judgePopups.push({text:'MISS',color:'#e57373',x:C.LANE_X[n.lane]+C.LANE_W/2,y:C.BASELINE_Y+30,life:0,maxLife:600})}
+  }
+  if(!gameEnded&&playerHP<=0){gameEnded=true;gameResult='defeat'}
+}
+
+/* ========== 渲染 ========== */
+function drawBackground(){ctx.fillStyle='#0d0d1a';ctx.fillRect(0,0,C.W,C.H);ctx.fillStyle='rgba(20,20,40,0.5)';ctx.fillRect(C.LANE_X[0]-15,50,C.LANE_X[3]-C.LANE_X[0]+C.LANE_W+30,C.H-100)}
+const THW=27;
+function drawLanes(){
+  for(let i=0;i<4;i++){
+    const bx=C.LANE_X[i],bcx=bx+C.LANE_W/2,by=C.BASELINE_Y;
+    const g=ctx.createLinearGradient(0,C.LANE_TOP_Y,0,C.EXIT_Y);
+    g.addColorStop(0,'rgba(25,25,45,0)');g.addColorStop(0.4,'rgba(25,25,45,0.02)');g.addColorStop(1,'rgba(25,25,45,0.10)');
+    ctx.fillStyle=g;
+    ctx.beginPath();ctx.moveTo(C.LANE_TOP_X[i]-THW,C.LANE_TOP_Y);ctx.lineTo(C.LANE_TOP_X[i]+THW,C.LANE_TOP_Y);
+    ctx.lineTo(bx+C.LANE_W,C.EXIT_Y);ctx.lineTo(bx,C.EXIT_Y);ctx.closePath();ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.03)';ctx.lineWidth=1;ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,0.02)';ctx.lineWidth=0.5;
+    ctx.beginPath();ctx.moveTo(C.LANE_TOP_X[i],C.LANE_TOP_Y);ctx.lineTo(bcx,C.EXIT_Y);ctx.stroke();
+    // 按键闪
+    if(laneFlash[i]>0){ctx.fillStyle=C.LANE_COLORS[i];ctx.globalAlpha=laneFlash[i]*0.25;
+      ctx.beginPath();ctx.moveTo(C.LANE_TOP_X[i]-THW,C.LANE_TOP_Y);ctx.lineTo(C.LANE_TOP_X[i]+THW,C.LANE_TOP_Y);
+      ctx.lineTo(bx+C.LANE_W,C.EXIT_Y);ctx.lineTo(bx,C.EXIT_Y);ctx.closePath();ctx.fill();ctx.globalAlpha=1}
+  }
+  // 彩轨引导线
+  for(let i=0;i<4;i++){
+    ctx.strokeStyle=C.LANE_COLORS[i];ctx.globalAlpha=0.10;ctx.lineWidth=1;ctx.setLineDash([4,6]);
+    ctx.beginPath();ctx.moveTo(C.LANE_TOP_X[i],C.LANE_TOP_Y);ctx.lineTo(C.LANE_X[i]+C.LANE_W/2,C.EXIT_Y);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1
+  }
+}
+function drawBaseline(){
+  const wh=(C.JUDGE_GOOD/1000)*C.NOTE_SPEED*2;
+  const g=ctx.createLinearGradient(0,C.BASELINE_Y-wh/2,0,C.BASELINE_Y+wh/2);
+  g.addColorStop(0,'rgba(255,255,255,0)');g.addColorStop(0.5,'rgba(255,255,255,0.04)');g.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=g;ctx.fillRect(C.LANE_X[0],C.BASELINE_Y-wh/2,C.LANE_X[3]-C.LANE_X[0]+C.LANE_W,wh);
+  ctx.strokeStyle= enemyDefeated && !gameEnded ? 'rgba(255,215,0,0.7)' : 'rgba(255,80,80,0.5)';
+  ctx.lineWidth=1.5;ctx.setLineDash([6,4]);
+  ctx.beginPath();ctx.moveTo(C.LANE_X[0],C.BASELINE_Y);ctx.lineTo(C.LANE_X[3]+C.LANE_W,C.BASELINE_Y);ctx.stroke();ctx.setLineDash([]);
+}
+
+function drawNotes(){
+  if(!audioCtx||!gameStarted)return;
+  const now=(audioCtx.currentTime-gameStartAudioTime)*1000-judgeOffset;
+  const EXIT_DURATION=200; // ms
+  for(const n of chartData.notes){
+    // 判定后的退出动画
+    if(n.judged&&n.exitTime){
+      const age=performance.now()-n.exitTime;
+      const isMiss=n.result==='miss'||n.autoMiss;
+      if(isMiss){
+        // 失败：继续滑落淡出
+        if(age>200)continue;
+        const p=age/200;
+        const nx=C.LANE_X[n.lane]+C.LANE_W/2;
+        const ny=C.BASELINE_Y+p*80;
+        const startY=n.exitY!=null?n.exitY:C.BASELINE_Y;
+        const ey=startY+p*80;
+        if(ny>C.H+30)continue;
+        ctx.globalAlpha=1-p;
+        ctx.fillStyle=C.LANE_COLORS[n.lane];ctx.shadowColor=C.LANE_COLORS[n.lane];ctx.shadowBlur=6;
+        ctx.fillRect(nx-C.NOTE_W/2,ey-C.NOTE_H/2,C.NOTE_W,C.NOTE_H);ctx.fillStyle='rgba(255,255,255,0.3)';ctx.fillRect(nx-C.NOTE_W/2,ey-C.NOTE_H/2,C.NOTE_W,4);ctx.shadowBlur=0;
+        ctx.globalAlpha=1;
+      }else{
+        // 成功：弹出特效后直接消失
+        if(age>120)continue;
+        const p=age/120,sc=1+p*0.4,al=1-p;
+        const nw=C.NOTE_W*sc,nh=C.NOTE_H*sc;
+        const nx=C.LANE_X[n.lane]+C.LANE_W/2,ny=C.BASELINE_Y;
+        ctx.globalAlpha=al;
+        ctx.fillStyle='#fff';ctx.shadowColor='#ffd700';ctx.shadowBlur=12;
+        ctx.fillRect(nx-nw/2,ny-nh/2,nw,nh);ctx.fillStyle='rgba(255,255,255,0.5)';ctx.fillRect(nx-nw/2,ny-nh/2,nw,Math.max(2,4*sc));
+        ctx.shadowBlur=0;ctx.globalAlpha=1;
+      }
+      continue;
+    }
+    if(n.judged)continue;
+    // progress: 1=顶部刚出现, 0=基线处, 负值=已过基线
+    const progress=Math.min(1,(n.time_ms-now)/C.NOTE_VISIBLE_MS);
+    if(progress>=0.9)continue;
+    const sx=C.LANE_TOP_X[n.lane],ex=C.LANE_X[n.lane]+C.LANE_W/2;
+    const nx=sx+(ex-sx)*(1-progress);
+    const ny=C.LANE_TOP_Y+(C.EXIT_Y-C.LANE_TOP_Y)*(1-progress);
+    if(ny<-30||ny>C.H+30)continue;
+    const scale=1-0.43*progress,nw=C.NOTE_W*scale,nh=C.NOTE_H*scale;
+    ctx.globalAlpha=1;ctx.fillStyle=C.LANE_COLORS[n.lane];ctx.shadowColor=C.LANE_COLORS[n.lane];ctx.shadowBlur=6*scale;
+    ctx.fillRect(nx-nw/2,ny-nh/2,nw,nh);ctx.fillStyle='rgba(255,255,255,0.3)';ctx.fillRect(nx-nw/2,ny-nh/2,nw,Math.max(2,4*scale));ctx.shadowBlur=0;
+  }
+}
+
+function drawPopups(){
+  judgePopups=judgePopups.filter(p=>p.life<p.maxLife);
+  for(const p of judgePopups){p.life+=16;const r=p.life/p.maxLife;ctx.globalAlpha=1-r;ctx.fillStyle=p.color;ctx.font='bold 18px system-ui';ctx.textAlign='center';ctx.fillText(p.text,p.x,p.y-r*40);ctx.globalAlpha=1}
+}
+
+function drawHP(){
+  // 敌人血条：击败后金色闪烁
+  const eColor= enemyDefeated ? (Math.floor(Date.now()/300)%2?'#ffd700':'#b8860b') : '#e74c3c';
+  [['player',90,220,'#2ecc71','#27ae60',playerHP,C.PLAYER_HP,'玩家'],
+   ['enemy',842,220,eColor,'#c0392b',enemyDefeated?0:enemyHP,enemyMaxHP,'敌人']].forEach(d=>{
+    const[w,x,y,c1,c2,hp,max,l]=d,wb=22,hb=180;ctx.fillStyle='#1a1a2e';ctx.fillRect(x,y,wb,hb);
+    const g=ctx.createLinearGradient(0,y+hb,0,y);g.addColorStop(0,c1);g.addColorStop(1,c2);
+    ctx.fillStyle=g;ctx.fillRect(x,y+hb*(1-hp/max),wb,hb*hp/max);ctx.strokeStyle=c1;ctx.lineWidth=1;ctx.strokeRect(x,y,wb,hb);
+    ctx.fillStyle='#fff';ctx.font='500 13px system-ui';ctx.textAlign='center';ctx.fillText(l,x+wb/2,y-10);
+    ctx.fillText(enemyDefeated&&l==='敌人'?'FINISH':Math.ceil(hp).toString(),x+wb/2,y+hb+18);
+  })
+}
+
+function drawCombo(){
+  const cx=C.W/2,cy=485;
+  if(combo<3&&!enemyDefeated)return;
+  if(enemyDefeated){ctx.fillStyle='rgba(255,100,0,0.6)';ctx.font='bold 24px system-ui';ctx.textAlign='center';ctx.fillText('FINISH HIM!',cx,cy-32)}
+  ctx.fillStyle='rgba(255,215,0,0.15)';ctx.fillRect(cx-60,cy-10,120,40);ctx.fillStyle='#ffd700';
+  ctx.font='500 13px system-ui';ctx.textAlign='center';ctx.fillText('COMBO',cx,cy+6);ctx.font='bold 20px system-ui';ctx.fillText('x'+combo,cx,cy+26);
+}
+
+function drawAttacks(){
+  attackQueue=attackQueue.filter(a=>{const age=performance.now()-a.time;if(age<0||age>350)return age<=350;const r=age/350;ctx.globalAlpha=r<0.3?0.6:(1-r)*0.6;ctx.fillStyle='#ff3333';
+    if(a.target==='enemy')ctx.fillRect(C.LANE_X[3]+C.LANE_W+10,50,C.W-C.LANE_X[3]-C.LANE_W-20,C.H-100);
+    else ctx.fillRect(0,50,C.LANE_X[0]-10,C.H-100);
+    ctx.globalAlpha=1;return true
+  });
+}
+
+function drawEnd(){
+  if(!gameEnded)return;const won=gameResult==='victory';
+  ctx.fillStyle='rgba(0,0,0,0.78)';ctx.fillRect(0,0,C.W,C.H);
+  ctx.fillStyle=won?'#ffd700':'#e74c3c';ctx.font='bold 36px system-ui';ctx.textAlign='center';
+  ctx.fillText(won?'胜利!':'败北',C.W/2,C.H/2-90);
+  if(won&&finisherCombo>0){
+    ctx.fillStyle='#ffa500';ctx.font='bold 22px system-ui';
+    ctx.fillText('终结技: x'+finisherCombo, C.W/2, C.H/2-50);
+  }
+  ctx.fillStyle='#ccc';ctx.font='14px system-ui';
+  const total=chartData.notes.length;
+  ['Perfect: '+perfectCount+'    Great: '+greatCount+'    Good: '+goodCount+'    Miss: '+missCount,
+   '最高 Combo: '+maxCombo,'命中率: '+Math.round((perfectCount+greatCount+goodCount)/total*100)+'% ('+(perfectCount+greatCount+goodCount)+'/'+total+')'].forEach((l,i)=>ctx.fillText(l,C.W/2,C.H/2-10+i*28));
+  ctx.fillStyle='#888';ctx.font='13px system-ui';ctx.fillText('按 R 返回准备界面',C.W/2,C.H/2+80);
+}
+
+function draw(){ctx.clearRect(0,0,C.W,C.H);drawBackground();drawLanes();drawBaseline();drawNotes();drawPopups();drawHP();drawCombo();drawAttacks();drawEnd()}
+
+/* ========== 主循环 ========== */
+function loop(){
+  if(gameStarted&&!gameEnded&&audioCtx){
+    processMisses();
+    for(let i=0;i<4;i++)laneFlash[i]=Math.max(0,laneFlash[i]-0.06);
+    if(audioCtx.currentTime-gameStartAudioTime>=gameAudioDuration){
+      // 歌曲结束：如果敌人已被击败 → 胜利
+      if(enemyDefeated){gameEnded=true;gameResult='victory'}
+      else{gameEnded=true;gameResult=playerHP>0?'victory':'defeat'}
+    }
+  }
+  draw();requestAnimationFrame(loop);
+}
+
+/* ========== 按键 ========== */
+const lm={KeyD:0,KeyF:1,KeyJ:2,KeyK:3};
+document.addEventListener('keydown',e=>{if(e.repeat)return;if(gameEnded){if(e.code==='KeyR')showStartPanel();return}if(!gameStarted)return;const l=lm[e.code];if(l!==undefined){e.preventDefault();tryJudge(l)}});
+
+/* ========== 游戏控制 ========== */
+document.getElementById('btnStart').addEventListener('click',()=>{
+  if(!chartData||!audioBuffer||!audioCtx)return;
+  resetState();
+  chartData.notes.forEach(n=>{n.judged=false;n.result=null;n.autoMiss=false});
+  audioSource=audioCtx.createBufferSource();audioSource.buffer=audioBuffer;
+  const gn=audioCtx.createGain();gn.gain.value=0.8;audioSource.connect(gn);gn.connect(audioCtx.destination);
+  audioSource.start(0);
+  gameAudioDuration=audioBuffer.duration;
+  audioSource.onended=()=>{};
+  gameStartAudioTime=audioCtx.currentTime;
+  gameStarted=true;
+  document.getElementById('overlay').style.display='none';
+});
+
+function showStartPanel(){
+  if(audioSource){try{audioSource.stop()}catch(e){}}
+  if(chartData)chartData.notes.forEach(n=>{n.judged=false;n.result=null});
+  gameStarted=false;gameEnded=false;gameResult='none';enemyDefeated=false;
+  document.getElementById('overlay').style.display='flex';
+}
+
+canvas=document.getElementById('game');ctx=canvas.getContext('2d');
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

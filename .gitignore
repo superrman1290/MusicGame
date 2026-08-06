@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+.vite/
+.workbuddy/
+.env
+.env.*
+!.env.example
+*.log
+apps/mock-api/data/songs/*/audio.upload
+
