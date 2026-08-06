@@ -3,8 +3,42 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MusicGame Chart Editor</title>
+    <title>MusicGame 编曲工坊</title>
   </head>
-  <body><header>MusicGame Chart Editor</header><main id="editor"></main><script type="module" src="/src/main.ts"></script></body>
+  <body>
+    <header class="app-bar">
+      <div class="brand"><strong>MUSICGAME</strong><span>编曲工坊</span></div>
+      <div class="project-actions">
+        <label class="file-button">导入音频<input id="audio-file" type="file" accept="audio/*" /></label>
+        <label class="file-button secondary">导入谱面<input id="chart-file" type="file" accept="application/json,.json" /></label>
+        <button id="export" type="button">导出</button>
+        <button id="publish" class="primary" type="button">发布</button>
+      </div>
+    </header>
+    <section class="metadata" aria-label="歌曲信息">
+      <label>歌曲 ID<input id="song-id" value="new-song" pattern="[a-z0-9][a-z0-9-]{1,63}" /></label>
+      <label>曲名<input id="title" value="Untitled" maxlength="120" /></label>
+      <label>曲师<input id="artist" value="Unknown Artist" maxlength="120" /></label>
+      <label>BPM<input id="bpm" type="number" value="120" min="40" max="300" /></label>
+      <label>难度<select id="difficulty"><option value="easy">EASY</option><option value="normal" selected>NORMAL</option><option value="hard">HARD</option><option value="expert">EXPERT</option></select></label>
+      <label>偏移 ms<input id="offset" type="number" value="0" min="-2000" max="2000" /></label>
+    </section>
+    <nav class="toolbar" aria-label="编辑工具">
+      <button id="play" type="button" title="播放或暂停">▶</button>
+      <button id="stop" type="button" title="停止">■</button>
+      <span class="divider"></span>
+      <button id="undo" type="button" title="撤销">↶</button>
+      <button id="redo" type="button" title="重做">↷</button>
+      <button id="copy" type="button" title="复制">复制</button>
+      <button id="paste" type="button" title="粘贴">粘贴</button>
+      <button id="delete" type="button" title="删除">删除</button>
+      <span class="divider"></span>
+      <label class="compact">吸附<select id="snap"><option value="4">1/4</option><option value="8" selected>1/8</option><option value="16">1/16</option><option value="32">1/32</option></select></label>
+      <label class="compact grow">位置<input id="scroll" type="range" min="0" max="0" value="0" step="100" /></label>
+      <output id="position">00:00.000</output>
+      <output id="status" role="status">等待导入音频</output>
+    </nav>
+    <main id="editor" aria-label="谱面时间轴"></main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
 </html>
-
