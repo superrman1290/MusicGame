@@ -1,0 +1,21 @@
+{
+  "name": "music-game",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "concurrently -k -n api,game,editor -c yellow,cyan,green \"npm:dev:api\" \"npm:dev:game\" \"npm:dev:editor\"",
+    "dev:api": "npm run dev -w @music-game/mock-api",
+    "dev:game": "npm run dev -w @music-game/game",
+    "dev:editor": "npm run dev -w @music-game/editor",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.7.3",
+    "vitest": "^3.2.4"
+  }
+}
