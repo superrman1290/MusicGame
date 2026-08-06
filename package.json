@@ -6,6 +6,7 @@
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev": "concurrently -k -n api,game,editor -c yellow,cyan,green \"npm:dev:api\" \"npm:dev:game\" \"npm:dev:editor\"",
+    "predev": "npm run build -w @music-game/chart-core",
     "dev:api": "npm run dev -w @music-game/mock-api",
     "dev:game": "npm run dev -w @music-game/game",
     "dev:editor": "npm run dev -w @music-game/editor",
