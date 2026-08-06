@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "concurrently -k -n api,game,editor -c yellow,cyan,green \"npm:dev:api\" \"npm:dev:game\" \"npm:dev:editor\"",
     "predev": "npm run build -w @music-game/chart-core",
@@ -12,9 +15,11 @@
     "dev:editor": "npm run dev -w @music-game/editor",
     "build": "npm run build -w @music-game/chart-core && npm run build -w @music-game/mock-api && npm run build -w @music-game/game && npm run build -w @music-game/editor",
     "test": "npm run test --workspaces --if-present",
+    "test:e2e": "playwright test",
     "lint": "npm run lint --workspaces --if-present"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "concurrently": "^9.2.1",
     "typescript": "^5.7.3",
     "vitest": "^3.2.4"

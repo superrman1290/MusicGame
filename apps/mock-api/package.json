@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "serve:e2e": "tsx src/server.ts",
     "seed": "tsx src/seed.ts",
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",

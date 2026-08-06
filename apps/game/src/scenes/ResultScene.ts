@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { GameStats } from '../gameplay/GameSession.js';
 import type { LoadedSong } from './types.js';
+import { exposeScene } from './sceneState.js';
 
 interface ResultData { loaded: LoadedSong; stats: GameStats; accuracy: number; won: boolean; }
 
@@ -10,6 +11,7 @@ export class ResultScene extends Phaser.Scene {
   init(data: ResultData): void { this.resultData = data; }
 
   create(): void {
+    exposeScene('result', this.resultData.won ? 'won' : 'lost');
     this.cameras.main.setBackgroundColor('#0b0b13');
     this.add.text(480, 100, this.resultData.won ? '胜利' : '挑战失败', { fontFamily: 'system-ui', fontSize: '42px', fontStyle: 'bold', color: this.resultData.won ? '#ffd54f' : '#e57373' }).setOrigin(0.5);
     this.add.text(480, 162, this.resultData.loaded.manifest.title, { fontFamily: 'system-ui', fontSize: '18px', color: '#b9b9c5' }).setOrigin(0.5);

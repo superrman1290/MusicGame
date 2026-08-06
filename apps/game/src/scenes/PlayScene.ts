@@ -3,6 +3,7 @@ import { adjustedSongTimeMs, type Judgement } from '@music-game/chart-core';
 import { AudioClock } from '../audio/AudioClock.js';
 import { GameSession } from '../gameplay/GameSession.js';
 import type { LoadedSong } from './types.js';
+import { exposeScene } from './sceneState.js';
 
 interface PlayData { loaded: LoadedSong; }
 const LANE_COLORS = [0x4fc3f7, 0x81c784, 0xffb74d, 0xe57373];
@@ -28,6 +29,7 @@ export class PlayScene extends Phaser.Scene {
   init(data: PlayData): void { this.loaded = data.loaded; }
 
   create(): void {
+    exposeScene('play', 'countdown');
     this.cameras.main.setBackgroundColor('#0a0a13');
     this.clock = new AudioClock(this.loaded.audioContext, this.loaded.audioBuffer);
     this.session = new GameSession(this.loaded.chart);
@@ -54,6 +56,7 @@ export class PlayScene extends Phaser.Scene {
       const remaining = 3000 - (this.time.now - this.countdownStartedAt);
       if (remaining > 0) { this.message.setText(String(Math.ceil(remaining / 1000))); this.draw(0); return; }
       this.audioStarted = true;
+      exposeScene('play', 'playing');
       this.message.setText('');
       void this.clock.start();
     }
@@ -81,6 +84,7 @@ export class PlayScene extends Phaser.Scene {
   private togglePause(): void {
     if (!this.audioStarted || this.finished) return;
     this.paused = !this.paused;
+    exposeScene('play', this.paused ? 'paused' : 'playing');
     if (this.paused) { this.clock.pause(); this.message.setAlpha(1).setY(275).setColor('#ffffff').setFontSize(28).setText('已暂停\n\nP 继续   R 重试   Q 返回'); }
     else { this.message.setText(''); void this.clock.start(); }
   }

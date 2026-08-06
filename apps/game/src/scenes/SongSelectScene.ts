@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { SongSummary } from '@music-game/chart-core';
 import type { SongListData } from './types.js';
+import { exposeScene } from './sceneState.js';
 
 export class SongSelectScene extends Phaser.Scene {
   private songs: SongSummary[] = [];
@@ -10,6 +11,7 @@ export class SongSelectScene extends Phaser.Scene {
   init(data: SongListData): void { this.songs = data.songs; this.error = data.error; }
 
   create(): void {
+    exposeScene('song-select');
     this.cameras.main.setBackgroundColor('#0b0b13');
     this.add.rectangle(0, 0, 960, 76, 0x14141f).setOrigin(0);
     this.add.text(42, 25, 'MUSIC GAME', { fontFamily: 'system-ui', fontSize: '22px', fontStyle: 'bold', color: '#ffffff' });
@@ -36,4 +38,3 @@ export class SongSelectScene extends Phaser.Scene {
     background.on('pointerup', () => this.scene.start('loading', { songId: song.id, difficulty: song.difficulties[0] }));
   }
 }
-

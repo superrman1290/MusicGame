@@ -34,7 +34,13 @@ output { color: #a9adb8; font-size: 12px; white-space: nowrap; }
 canvas { display: block; }
 @media (max-width: 900px) {
   html, body { overflow: auto; }
-  .metadata { grid-template-columns: repeat(3, minmax(130px, 1fr)); height: auto; }
-  .toolbar { overflow-x: auto; }
-  #editor { min-width: 900px; }
+  .app-bar { height: auto; min-height: 104px; padding: 12px 16px; align-items: flex-start; flex-direction: column; gap: 10px; }
+  .project-actions { width: 100%; overflow-x: auto; padding-bottom: 2px; }
+  .project-actions > * { flex: 0 0 auto; }
+  .metadata { grid-template-columns: repeat(2, minmax(0, 1fr)); height: auto; padding: 10px 16px; }
+  .toolbar { padding-inline: 16px; overflow-x: auto; }
+  .toolbar > * { flex: 0 0 auto; }
+  .toolbar .grow { width: 170px; }
+  #status { min-width: 130px; }
+  #editor { min-width: 0; height: calc(100vh - 330px); min-height: 360px; }
 }

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { validateAudioBinding, type Difficulty } from '@music-game/chart-core';
 import { songRepository } from '../repository/HttpSongRepository.js';
 import type { LoadedSong } from './types.js';
+import { exposeScene } from './sceneState.js';
 
 interface LoadingData { songId: string; difficulty: Difficulty; }
 
@@ -16,11 +17,14 @@ export class LoadingScene extends Phaser.Scene {
   init(data: LoadingData): void { this.loadingData = data; }
 
   create(): void {
+    exposeScene('loading', 'loading');
     this.cameras.main.setBackgroundColor('#0b0b13');
     this.add.text(480, 265, '正在加载曲目', { fontFamily: 'system-ui', fontSize: '27px', color: '#ffffff' }).setOrigin(0.5);
     const status = this.add.text(480, 315, '读取谱面与音频...', { fontFamily: 'system-ui', fontSize: '14px', color: '#8c8c9e', align: 'center', wordWrap: { width: 680 } }).setOrigin(0.5);
     void this.loadSong().then((loaded) => this.scene.start('play', { loaded })).catch((error: unknown) => {
-      status.setColor('#e57373').setText(error instanceof Error ? error.message : '加载失败');
+      const message = error instanceof Error ? error.message : '加载失败';
+      exposeScene('loading', 'error', message);
+      status.setColor('#e57373').setText(message);
       this.add.text(480, 385, '返回曲目列表', { fontFamily: 'system-ui', fontSize: '15px', color: '#ffffff', backgroundColor: '#343443', padding: { x: 16, y: 10 } }).setOrigin(0.5).setInteractive({ useHandCursor: true }).on('pointerup', () => this.scene.start('boot'));
     });
   }

@@ -8,4 +8,6 @@ coverage/
 !.env.example
 *.log
 apps/mock-api/data/songs/*/audio.upload
-
+playwright-report/
+test-results/
+.e2e-data/
